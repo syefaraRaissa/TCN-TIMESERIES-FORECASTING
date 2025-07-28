@@ -10,9 +10,15 @@ st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
 @st.cache_resource
 def load_artifacts():
-    model = load_model("tcn_timeseries_model.keras", compile=False)
+    rom keras.models import load_model
+    from tcn import TCN
+    import pickle
+    
+ model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
+    
     with open("scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
+
     return model, scaler
 
 model, scaler = load_artifacts()
