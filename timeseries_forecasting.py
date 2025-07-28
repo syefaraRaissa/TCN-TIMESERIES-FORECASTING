@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 from datetime import timedelta
 from tensorflow.keras.models import load_model
 from tcn import TCN  # pastikan tcn sudah terinstall via requirements.txt
+import joblib
+ from keras.models import load_model
+    from tcn import TCN
 
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
@@ -13,8 +16,7 @@ st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 @st.cache_resource
 def load_artifacts():
     model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
-    with open("scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
+    scaler = joblib.load("scaler.joblib")
     return model, scaler
 
 # Muat model dan scaler
