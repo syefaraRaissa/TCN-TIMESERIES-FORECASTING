@@ -10,7 +10,7 @@ st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
 @st.cache_resource
 def load_artifacts():
-    rom keras.models import load_model
+    from keras.models import load_model
     from tcn import TCN
     import pickle
     
