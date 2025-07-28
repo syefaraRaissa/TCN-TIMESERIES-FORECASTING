@@ -23,8 +23,8 @@ def load_artifacts():
 # Muat model dan scaler
 model, scaler = load_artifacts()
 
-WINDOW_SIZE = 60
-FUTURE_STEPS = 60
+WINDOW_SIZE = 60      # jumlah data input (10 detik * 60 = 10 menit sebelumnya)
+FUTURE_STEPS = 60     # jumlah langkah prediksi (10 detik * 60 = 10 menit ke depan)
 
 # Upload CSV
 uploaded_file = st.file_uploader("📂 Upload File CSV", type=["csv"])
@@ -33,28 +33,32 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
     try:
+        # Preprocessing kolom waktu dan urutkan
         df['ddate'] = pd.to_datetime(df['ddate'])
         df = df.sort_values('ddate').reset_index(drop=True)
+
         st.subheader("📊 Data Terakhir:")
         st.dataframe(df.tail(5))
 
         if len(df) < WINDOW_SIZE:
             st.error(f"❌ Data kurang. Minimal {WINDOW_SIZE} baris diperlukan.")
         else:
-            # Ambil data input
+            # Ambil 60 nilai terakhir sebagai input
             last_values = df['tag_value'].values[-WINDOW_SIZE:]
             scaled_input = scaler.transform(last_values.reshape(-1, 1)).reshape(1, WINDOW_SIZE, 1)
 
             forecast = []
             current_input = scaled_input
 
+            # Prediksi 60 langkah ke depan
             for _ in range(FUTURE_STEPS):
                 pred = model.predict(current_input, verbose=0)[0, 0]
                 forecast.append(pred)
                 current_input = np.append(current_input[:, 1:, :], [[[pred]]], axis=1)
 
-            # Inverse transform hasil prediksi
+            # Kembalikan ke skala asli
             forecast_actual = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
+
             last_time = df['ddate'].iloc[-1]
             future_times = [last_time + timedelta(seconds=10 * (i + 1)) for i in range(FUTURE_STEPS)]
 
@@ -69,11 +73,11 @@ if uploaded_file:
             st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
 
-            # Hitung MAE dan RMSE jika data cukup
+            # Evaluasi jika data cukup
             if len(df) >= WINDOW_SIZE + FUTURE_STEPS:
                 actual_future = df['tag_value'].values[-FUTURE_STEPS:]
                 mae = mean_absolute_error(actual_future, forecast_actual)
-                rmse = mean_squared_error(actual_future, forecast_actual, squared=False)
+                rmse = np.sqrt(mean_squared_error(actual_future, forecast_actual))  # ← Ganti dengan aman
 
                 st.subheader("📉 Evaluasi Model (Data Uji)")
                 st.markdown(f"""
@@ -81,7 +85,7 @@ if uploaded_file:
                 - **RMSE (Root Mean Squared Error)**: `{rmse:.4f}`
                 """)
             else:
-                st.warning("⚠️ Tidak cukup data untuk evaluasi MAE dan RMSE (diperlukan 60 baris data setelah input).")
+                st.warning("⚠️ Tidak cukup data untuk evaluasi MAE dan RMSE (diperlukan minimal 60 baris data aktual setelah input).")
 
     except Exception as e:
         st.error(f"❌ Error saat memproses data: {e}")
