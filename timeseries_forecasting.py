@@ -5,6 +5,7 @@ import joblib
 from datetime import timedelta
 from tensorflow.keras.models import load_model
 from tcn import TCN
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
@@ -37,11 +38,11 @@ if uploaded_file:
         st.subheader("📊 Data Terakhir:")
         st.dataframe(df.tail(5))
 
-        last_values = df['tag_value'].values[-WINDOW_SIZE:]
-        if len(last_values) < WINDOW_SIZE:
+        if len(df) < WINDOW_SIZE:
             st.error(f"❌ Data kurang. Minimal {WINDOW_SIZE} baris diperlukan.")
         else:
-            # Normalisasi input
+            # Ambil data input
+            last_values = df['tag_value'].values[-WINDOW_SIZE:]
             scaled_input = scaler.transform(last_values.reshape(-1, 1)).reshape(1, WINDOW_SIZE, 1)
 
             forecast = []
@@ -52,6 +53,7 @@ if uploaded_file:
                 forecast.append(pred)
                 current_input = np.append(current_input[:, 1:, :], [[[pred]]], axis=1)
 
+            # Inverse transform hasil prediksi
             forecast_actual = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
             last_time = df['ddate'].iloc[-1]
             future_times = [last_time + timedelta(seconds=10 * (i + 1)) for i in range(FUTURE_STEPS)]
@@ -66,6 +68,20 @@ if uploaded_file:
 
             st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
+
+            # Hitung MAE dan RMSE jika data cukup
+            if len(df) >= WINDOW_SIZE + FUTURE_STEPS:
+                actual_future = df['tag_value'].values[-FUTURE_STEPS:]
+                mae = mean_absolute_error(actual_future, forecast_actual)
+                rmse = mean_squared_error(actual_future, forecast_actual, squared=False)
+
+                st.subheader("📉 Evaluasi Model (Data Uji)")
+                st.markdown(f"""
+                - **MAE (Mean Absolute Error)**: `{mae:.4f}`
+                - **RMSE (Root Mean Squared Error)**: `{rmse:.4f}`
+                """)
+            else:
+                st.warning("⚠️ Tidak cukup data untuk evaluasi MAE dan RMSE (diperlukan 60 baris data setelah input).")
 
     except Exception as e:
         st.error(f"❌ Error saat memproses data: {e}")
