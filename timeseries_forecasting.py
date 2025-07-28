@@ -1,23 +1,23 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
-import matplotlib.pyplot as plt
+import joblib
 from datetime import timedelta
 from tensorflow.keras.models import load_model
-from tcn import TCN  # pastikan tcn sudah terinstall via requirements.txt
-import joblib
- from keras.models import load_model
-    from tcn import TCN
+from tcn import TCN
 
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
 # Fungsi caching untuk load model dan scaler
 @st.cache_resource
 def load_artifacts():
-    model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
-    scaler = joblib.load("scaler.joblib")
-    return model, scaler
+    try:
+        model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
+        scaler = joblib.load("scaler.joblib")
+        return model, scaler
+    except Exception as e:
+        st.error(f"Gagal memuat model atau scaler: {e}")
+        st.stop()
 
 # Muat model dan scaler
 model, scaler = load_artifacts()
