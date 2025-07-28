@@ -3,33 +3,32 @@ import pandas as pd
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
 from datetime import timedelta
+from tensorflow.keras.models import load_model
+from tcn import TCN  # pastikan tcn sudah terinstall via requirements.txt
 
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
+# Fungsi caching untuk load model dan scaler
 @st.cache_resource
 def load_artifacts():
-    from keras.models import load_model
-    from tcn import TCN
-    import pickle
-    
- model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
-    
+    model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
     with open("scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
-
     return model, scaler
 
+# Muat model dan scaler
 model, scaler = load_artifacts()
 
 WINDOW_SIZE = 60
 FUTURE_STEPS = 60
 
+# Upload CSV
 uploaded_file = st.file_uploader("📂 Upload File CSV", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+
     try:
         df['ddate'] = pd.to_datetime(df['ddate'])
         df = df.sort_values('ddate').reset_index(drop=True)
@@ -40,7 +39,9 @@ if uploaded_file:
         if len(last_values) < WINDOW_SIZE:
             st.error(f"❌ Data kurang. Minimal {WINDOW_SIZE} baris diperlukan.")
         else:
+            # Normalisasi input
             scaled_input = scaler.transform(last_values.reshape(-1, 1)).reshape(1, WINDOW_SIZE, 1)
+
             forecast = []
             current_input = scaled_input
 
