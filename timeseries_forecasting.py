@@ -6,110 +6,86 @@ from datetime import timedelta
 from tensorflow.keras.models import load_model
 from tcn import TCN
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Prediksi Tag Value", layout="wide")
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
-# Load model dan scaler
+# Fungsi caching untuk load model dan scaler
 @st.cache_resource
 def load_artifacts():
     try:
-        model = load_model("/mnt/data/tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
-        scaler = joblib.load("/mnt/data/scaler.pkl")
+        model = load_model("tcn_timeseries_model.keras", compile=False, custom_objects={"TCN": TCN})
+        scaler = joblib.load("scaler.joblib")
         return model, scaler
     except Exception as e:
         st.error(f"Gagal memuat model atau scaler: {e}")
         st.stop()
 
+# Muat model dan scaler
 model, scaler = load_artifacts()
 
-# Konstanta
-WINDOW_SIZE = 60       # Input: 10 menit (60 titik data)
-FUTURE_STEPS = 60      # Output: Prediksi 10 menit ke depan
-MIN_DATA = WINDOW_SIZE + FUTURE_STEPS
+WINDOW_SIZE = 60      # jumlah data input (10 detik * 60 = 10 menit sebelumnya)
+FUTURE_STEPS = 60     # jumlah langkah prediksi (10 detik * 60 = 10 menit ke depan)
 
-# Upload file
+# Upload CSV
 uploaded_file = st.file_uploader("📂 Upload File CSV", type=["csv"])
 
 if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+
     try:
-        df = pd.read_csv(uploaded_file)
-
-        if 'ddate' not in df.columns or 'tag_value' not in df.columns:
-            st.error("❌ Kolom wajib: 'ddate' dan 'tag_value' tidak ditemukan.")
-            st.stop()
-
-        # Preprocessing
-        df['ddate'] = pd.to_datetime(df['ddate'], errors='coerce')
-        df = df.dropna(subset=['ddate', 'tag_value'])  # Drop data kosong
+        # Preprocessing kolom waktu dan urutkan
+        df['ddate'] = pd.to_datetime(df['ddate'])
         df = df.sort_values('ddate').reset_index(drop=True)
 
         st.subheader("📊 Data Terakhir:")
         st.dataframe(df.tail(5))
 
-        if len(df) < MIN_DATA:
-            st.error(f"❌ Minimal {MIN_DATA} baris data diperlukan untuk prediksi dan evaluasi.")
+        if len(df) < WINDOW_SIZE:
+            st.error(f"❌ Data kurang. Minimal {WINDOW_SIZE} baris diperlukan.")
         else:
-            # Ambil input dan target
-            last_input_values = df['tag_value'].values[-MIN_DATA:-FUTURE_STEPS]
-            actual_future_values = df['tag_value'].values[-FUTURE_STEPS:]
+            # Ambil 60 nilai terakhir sebagai input
+            last_values = df['tag_value'].values[-WINDOW_SIZE:]
+            scaled_input = scaler.transform(last_values.reshape(-1, 1)).reshape(1, WINDOW_SIZE, 1)
 
-            # Skalakan input pakai DataFrame agar kolom sesuai
-            input_df = pd.DataFrame(last_input_values, columns=["tag_value"])
-            scaled_input = scaler.transform(input_df).reshape(1, WINDOW_SIZE, 1)
-
-            # Prediksi iteratif
             forecast = []
-            current_input = scaled_input.copy()
+            current_input = scaled_input
 
+            # Prediksi 60 langkah ke depan
             for _ in range(FUTURE_STEPS):
                 pred = model.predict(current_input, verbose=0)[0, 0]
                 forecast.append(pred)
                 current_input = np.append(current_input[:, 1:, :], [[[pred]]], axis=1)
 
-            # Inverse transform hasil prediksi
-            forecast_df = pd.DataFrame(forecast, columns=["tag_value"])
-            forecast_actual = scaler.inverse_transform(forecast_df).flatten()
+            # Kembalikan ke skala asli
+            forecast_actual = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-            # Buat waktu prediksi
-            last_time = df['ddate'].iloc[-FUTURE_STEPS - 1]
+            last_time = df['ddate'].iloc[-1]
             future_times = [last_time + timedelta(seconds=10 * (i + 1)) for i in range(FUTURE_STEPS)]
 
             result_df = pd.DataFrame({
                 'Datetime': future_times,
-                'Prediksi Tag Value': forecast_actual,
-                'Aktual': actual_future_values
+                'Prediksi Tag Value': forecast_actual.flatten()
             })
 
-            # Grafik Prediksi
-            st.subheader("📈 Grafik Prediksi 10 Menit Ke Depan")
-            st.line_chart(result_df.set_index("Datetime")[["Prediksi Tag Value"]])
+            st.subheader("📈 Grafik Prediksi")
+            st.line_chart(result_df.set_index("Datetime"))
 
-            # Grafik Gabungan Aktual vs Prediksi
-            st.subheader("📊 Grafik Gabungan Aktual vs Prediksi")
-            fig, ax = plt.subplots(figsize=(12, 5))
-            ax.plot(result_df['Datetime'], result_df['Aktual'], label="Aktual", color="blue")
-            ax.plot(result_df['Datetime'], result_df['Prediksi Tag Value'], label="Prediksi", color="red")
-            ax.set_title("Perbandingan Prediksi dan Aktual")
-            ax.set_xlabel("Waktu")
-            ax.set_ylabel("Tag Value")
-            ax.legend()
-            st.pyplot(fig)
-
-            # Evaluasi
-            mae = mean_absolute_error(result_df['Aktual'], result_df['Prediksi Tag Value'])
-            rmse = np.sqrt(mean_squared_error(result_df['Aktual'], result_df['Prediksi Tag Value']))
-
-            st.subheader("📉 Evaluasi Model (Data Uji)")
-            st.markdown(f"""
-            - **MAE (Mean Absolute Error)**: `{mae:.4f}`
-            - **RMSE (Root Mean Squared Error)**: `{rmse:.4f}`
-            """)
-
-            # Tabel hasil
-            st.subheader("📋 Tabel Prediksi dan Aktual")
+            st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
 
+            # Evaluasi jika data cukup
+            if len(df) >= WINDOW_SIZE + FUTURE_STEPS:
+                actual_future = df['tag_value'].values[-FUTURE_STEPS:]
+                mae = mean_absolute_error(actual_future, forecast_actual)
+                rmse = np.sqrt(mean_squared_error(actual_future, forecast_actual))  # ← Ganti dengan aman
+
+                st.subheader("📉 Evaluasi Model (Data Uji)")
+                st.markdown(f"""
+                - *MAE (Mean Absolute Error)*: {mae:.4f}
+                - *RMSE (Root Mean Squared Error)*: {rmse:.4f}
+                """)
+            else:
+                st.warning("⚠️ Tidak cukup data untuk evaluasi MAE dan RMSE (diperlukan minimal 60 baris data aktual setelah input).")
+
     except Exception as e:
-        st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+        st.error(f"❌ Error saat memproses data: {e}")
