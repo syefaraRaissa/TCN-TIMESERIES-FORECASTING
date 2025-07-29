@@ -8,6 +8,7 @@ from tcn import TCN
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import matplotlib.pyplot as plt
 
+st.set_page_config(page_title="Prediksi Tag Value", layout="wide")
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
 # Load model dan scaler
@@ -24,9 +25,9 @@ def load_artifacts():
 model, scaler = load_artifacts()
 
 # Konstanta
-WINDOW_SIZE = 60       # Data input (10 menit = 60 data)
-FUTURE_STEPS = 60      # Prediksi ke depan (10 menit)
-MIN_DATA = WINDOW_SIZE + FUTURE_STEPS  # Data minimum
+WINDOW_SIZE = 60       # Input: 10 menit (60 titik data)
+FUTURE_STEPS = 60      # Output: Prediksi 10 menit ke depan
+MIN_DATA = WINDOW_SIZE + FUTURE_STEPS
 
 # Upload file
 uploaded_file = st.file_uploader("📂 Upload File CSV", type=["csv"])
@@ -39,8 +40,9 @@ if uploaded_file:
             st.error("❌ Kolom wajib: 'ddate' dan 'tag_value' tidak ditemukan.")
             st.stop()
 
+        # Preprocessing
         df['ddate'] = pd.to_datetime(df['ddate'], errors='coerce')
-        df = df.dropna(subset=['ddate', 'tag_value'])  # Drop NaN
+        df = df.dropna(subset=['ddate', 'tag_value'])  # Drop data kosong
         df = df.sort_values('ddate').reset_index(drop=True)
 
         st.subheader("📊 Data Terakhir:")
@@ -49,13 +51,13 @@ if uploaded_file:
         if len(df) < MIN_DATA:
             st.error(f"❌ Minimal {MIN_DATA} baris data diperlukan untuk prediksi dan evaluasi.")
         else:
-            # Ambil data untuk input & evaluasi
+            # Ambil input dan target
             last_input_values = df['tag_value'].values[-MIN_DATA:-FUTURE_STEPS]
             actual_future_values = df['tag_value'].values[-FUTURE_STEPS:]
 
-            # Skalakan input (pastikan pakai DataFrame agar kolom cocok)
-            last_input_df = pd.DataFrame(last_input_values, columns=["tag_value"])
-            scaled_input = scaler.transform(last_input_df).reshape(1, WINDOW_SIZE, 1)
+            # Skalakan input pakai DataFrame agar kolom sesuai
+            input_df = pd.DataFrame(last_input_values, columns=["tag_value"])
+            scaled_input = scaler.transform(input_df).reshape(1, WINDOW_SIZE, 1)
 
             # Prediksi iteratif
             forecast = []
@@ -66,15 +68,17 @@ if uploaded_file:
                 forecast.append(pred)
                 current_input = np.append(current_input[:, 1:, :], [[[pred]]], axis=1)
 
-            forecast_actual = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
+            # Inverse transform hasil prediksi
+            forecast_df = pd.DataFrame(forecast, columns=["tag_value"])
+            forecast_actual = scaler.inverse_transform(forecast_df).flatten()
 
-            # Waktu hasil prediksi
+            # Buat waktu prediksi
             last_time = df['ddate'].iloc[-FUTURE_STEPS - 1]
             future_times = [last_time + timedelta(seconds=10 * (i + 1)) for i in range(FUTURE_STEPS)]
 
             result_df = pd.DataFrame({
                 'Datetime': future_times,
-                'Prediksi Tag Value': forecast_actual.flatten(),
+                'Prediksi Tag Value': forecast_actual,
                 'Aktual': actual_future_values
             })
 
@@ -82,7 +86,7 @@ if uploaded_file:
             st.subheader("📈 Grafik Prediksi 10 Menit Ke Depan")
             st.line_chart(result_df.set_index("Datetime")[["Prediksi Tag Value"]])
 
-            # Grafik Gabungan
+            # Grafik Gabungan Aktual vs Prediksi
             st.subheader("📊 Grafik Gabungan Aktual vs Prediksi")
             fig, ax = plt.subplots(figsize=(12, 5))
             ax.plot(result_df['Datetime'], result_df['Aktual'], label="Aktual", color="blue")
