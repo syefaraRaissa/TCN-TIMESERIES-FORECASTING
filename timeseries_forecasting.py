@@ -24,7 +24,7 @@ def load_artifacts():
 model, scaler = load_artifacts()
 
 WINDOW_SIZE = 30      # jumlah data input (10 detik * 60 = 10 menit sebelumnya)
-FUTURE_STEPS = 360     # jumlah langkah prediksi (10 detik * 60 = 10 menit ke depan)
+FUTURE_STEPS = 60     # jumlah langkah prediksi (10 detik * 60 = 10 menit ke depan)
 
 # Upload CSV
 uploaded_file = st.file_uploader("📂 Upload File CSV", type=["csv"])
