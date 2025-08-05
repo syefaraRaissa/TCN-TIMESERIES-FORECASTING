@@ -73,6 +73,32 @@ if uploaded_file:
             st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
 
+            # Ambil data historis terakhir sebanyak WINDOW_SIZE (misal 30 titik)
+historical_times = df['ddate'].iloc[-WINDOW_SIZE:]
+historical_values = df['tag_value'].values[-WINDOW_SIZE:]
+
+# Buat DataFrame untuk nilai historis
+historical_df = pd.DataFrame({
+    'Datetime': historical_times,
+    'Tag Value': historical_values,
+    'Tipe': ['Aktual'] * WINDOW_SIZE
+})
+
+# Buat DataFrame untuk nilai prediksi
+predicted_df = pd.DataFrame({
+    'Datetime': future_times,
+    'Tag Value': forecast_actual.flatten(),
+    'Tipe': ['Prediksi'] * FUTURE_STEPS
+})
+
+# Gabungkan keduanya untuk visualisasi kontinu
+combined_df = pd.concat([historical_df, predicted_df]).reset_index(drop=True)
+
+# Tampilkan grafik gabungan
+st.subheader("📈 Grafik Gabungan Nilai Aktual dan Prediksi")
+st.line_chart(combined_df.set_index('Datetime'))
+
+
             # Evaluasi jika data cukup
             if len(df) >= WINDOW_SIZE + FUTURE_STEPS:
                 actual_future = df['tag_value'].values[-FUTURE_STEPS:]
