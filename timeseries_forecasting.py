@@ -6,6 +6,7 @@ from datetime import timedelta
 from tensorflow.keras.models import load_model
 from tcn import TCN
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import matplotlib.pyplot as plt
 
 st.title("🔮 Prediksi Tag Value 10 Menit Ke Depan (per 10 Detik)")
 
@@ -23,7 +24,8 @@ def load_artifacts():
 # Muat model dan scaler
 model, scaler = load_artifacts()
 
-WINDOW_SIZE = 30      # jumlah data input (10 detik * 60 = 10 menit sebelumnya)
+# Parameter
+WINDOW_SIZE = 30      # jumlah data input (10 detik * 30 = 5 menit sebelumnya)
 FUTURE_STEPS = 60     # jumlah langkah prediksi (10 detik * 60 = 10 menit ke depan)
 
 # Upload CSV
@@ -43,17 +45,18 @@ if uploaded_file:
         if len(df) < WINDOW_SIZE:
             st.error(f"❌ Data kurang. Minimal {WINDOW_SIZE} baris diperlukan.")
         else:
-            # Ambil 60 nilai terakhir sebagai input
+            # Ambil WINDOW_SIZE nilai terakhir sebagai input
             last_values = df['tag_value'].values[-WINDOW_SIZE:]
             scaled_input = scaler.transform(last_values.reshape(-1, 1)).reshape(1, WINDOW_SIZE, 1)
 
             forecast = []
             current_input = scaled_input
 
-            # Prediksi 60 langkah ke depan
+            # Prediksi FUTURE_STEPS langkah ke depan
             for _ in range(FUTURE_STEPS):
                 pred = model.predict(current_input, verbose=0)[0, 0]
                 forecast.append(pred)
+                # Sliding window
                 current_input = np.append(current_input[:, 1:, :], [[[pred]]], axis=1)
 
             # Kembalikan ke skala asli
@@ -67,8 +70,21 @@ if uploaded_file:
                 'Prediksi Tag Value': forecast_actual.flatten()
             })
 
+            # ================= GRAFIK (seperti contoh kamu) =================
             st.subheader("📈 Grafik Prediksi")
-            st.line_chart(result_df.set_index("Datetime"))
+            hist_times = df['ddate'].iloc[-WINDOW_SIZE:]
+            hist_values = df['tag_value'].iloc[-WINDOW_SIZE:]
+
+            plt.figure(figsize=(10, 5))
+            plt.plot(hist_times, hist_values, color="blue", label="Data Historis")
+            plt.plot(result_df['Datetime'], result_df['Prediksi Tag Value'], color="red", label="Prediksi")
+            plt.xlabel("Waktu")
+            plt.ylabel("Tag Value")
+            plt.title("Grafik Prediksi")
+            plt.legend()
+            plt.grid(True)
+            st.pyplot(plt)
+            # ===============================================================
 
             st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
@@ -77,7 +93,7 @@ if uploaded_file:
             if len(df) >= WINDOW_SIZE + FUTURE_STEPS:
                 actual_future = df['tag_value'].values[-FUTURE_STEPS:]
                 mae = mean_absolute_error(actual_future, forecast_actual)
-                rmse = np.sqrt(mean_squared_error(actual_future, forecast_actual))  # ← Ganti dengan aman
+                rmse = np.sqrt(mean_squared_error(actual_future, forecast_actual))
 
                 st.subheader("📉 Evaluasi Model (Data Uji)")
                 st.markdown(f"""
