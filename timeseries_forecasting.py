@@ -80,8 +80,12 @@ if uploaded_file:
             # Plot data historis
             ax.plot(hist_times, hist_values, color="blue", label="Data Historis")
 
-            # Plot prediksi
-            ax.plot(result_df['Datetime'], result_df['Prediksi Tag Value'], color="red", label="Prediksi")
+            # Plot prediksi mulai dari titik terakhir historis → supaya nyambung
+            ax.plot(
+                [hist_times.iloc[-1]] + list(result_df['Datetime']),
+                [hist_values.iloc[-1]] + list(result_df['Prediksi Tag Value']),
+                color="red", label="Prediksi"
+            )
 
             # Style biar mirip contoh
             ax.set_title("📊 Grafik Prediksi", fontsize=14, fontweight="bold")
