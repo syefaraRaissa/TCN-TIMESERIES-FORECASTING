@@ -70,21 +70,35 @@ if uploaded_file:
                 'Prediksi Tag Value': forecast_actual.flatten()
             })
 
-            # ================= GRAFIK (seperti contoh kamu) =================
+            # ================= GRAFIK MIRIP GAMBAR =================
             st.subheader("📈 Grafik Prediksi")
             hist_times = df['ddate'].iloc[-WINDOW_SIZE:]
             hist_values = df['tag_value'].iloc[-WINDOW_SIZE:]
 
-            plt.figure(figsize=(10, 5))
-            plt.plot(hist_times, hist_values, color="blue", label="Data Historis")
-            plt.plot(result_df['Datetime'], result_df['Prediksi Tag Value'], color="red", label="Prediksi")
-            plt.xlabel("Waktu")
-            plt.ylabel("Tag Value")
-            plt.title("Grafik Prediksi")
-            plt.legend()
-            plt.grid(True)
-            st.pyplot(plt)
-            # ===============================================================
+            fig, ax = plt.subplots(figsize=(10, 5))
+
+            # Plot data historis
+            ax.plot(hist_times, hist_values, color="blue", label="Data Historis")
+
+            # Plot prediksi
+            ax.plot(result_df['Datetime'], result_df['Prediksi Tag Value'], color="red", label="Prediksi")
+
+            # Style biar mirip contoh
+            ax.set_title("📊 Grafik Prediksi", fontsize=14, fontweight="bold")
+            ax.set_xlabel("Waktu")
+            ax.set_ylabel("Tag Value")
+            ax.grid(True, linestyle="--", alpha=0.7)
+
+            # Legend di kanan atas dengan frame
+            ax.legend(loc="upper right", fontsize=10, frameon=True)
+
+            # Tambahkan border hitam (frame) di sekitar grafik
+            for spine in ax.spines.values():
+                spine.set_edgecolor("black")
+                spine.set_linewidth(1.2)
+
+            st.pyplot(fig)
+            # ========================================================
 
             st.subheader("📋 Tabel Prediksi")
             st.dataframe(result_df)
